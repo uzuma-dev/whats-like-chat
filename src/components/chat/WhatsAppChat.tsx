@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Chat } from '@/types/chat';
 import { ChatList } from './ChatList';
 import { ChatView } from './ChatView';
@@ -7,6 +7,7 @@ import { MessageInput } from './MessageInput';
 import { useChats } from '@/hooks/useChats';
 import { useMessages } from '@/hooks/useMessages';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 export const WhatsAppChat = () => {
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
@@ -17,11 +18,26 @@ export const WhatsAppChat = () => {
   const { messages, loading: messagesLoading, sending, sendMessage } = useMessages(selectedChat?._id);
   const { toast } = useToast();
 
-  const handleSelectChat = (chat: Chat) => {
+  const handleSelectChat = async (chat: Chat) => {
     setSelectedChat(chat);
-    // Here you would typically fetch the current AI status from Supabase
-    // For now, we'll set it to false
-    setAiActive(false);
+    
+    // Fetch AI status from Supabase
+    try {
+      const { data, error } = await supabase
+        .from('ai_settings')
+        .select('active_ai')
+        .eq('session_id', chat.sessionId)
+        .maybeSingle();
+      
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching AI status:', error);
+      }
+      
+      setAiActive(data?.active_ai || false);
+    } catch (error) {
+      console.error('Error fetching AI status:', error);
+      setAiActive(false);
+    }
   };
 
   const handleSendMessage = (content: string) => {
@@ -36,21 +52,30 @@ export const WhatsAppChat = () => {
     try {
       setAiLoading(true);
       
-      // Here you would update Supabase ai_settings table
-      // This requires the Supabase integration to be active
-      // For now, we'll just update the local state
+      // Update or create AI settings in Supabase
+      const { error } = await supabase
+        .from('ai_settings')
+        .upsert(
+          { 
+            session_id: selectedChat.sessionId, 
+            active_ai: active 
+          },
+          { 
+            onConflict: 'session_id',
+            ignoreDuplicates: false 
+          }
+        );
+      
+      if (error) {
+        throw error;
+      }
+      
       setAiActive(active);
       
       toast({
         title: active ? "AI Activado" : "AI Desactivado",
         description: `El asistente de IA ha sido ${active ? 'activado' : 'desactivado'} para este chat`,
       });
-      
-      // TODO: Implement Supabase update when integration is active
-      // await supabase
-      //   .from('ai_settings')
-      //   .update({ active_ai: active })
-      //   .eq('sessionId', selectedChat.sessionId)
       
     } catch (error) {
       console.error('Error toggling AI:', error);
