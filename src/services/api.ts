@@ -1,6 +1,6 @@
 import { ChatResponse, MessagesResponse, SendMessageRequest, SendMessageResponse } from '@/types/chat';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+const API_BASE_URL = ''; // Use relative URLs; avoids process.env in browser
 
 export const chatApi = {
   async getChats(page = 1, limit = 20, sessionId?: string): Promise<ChatResponse> {
